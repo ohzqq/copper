@@ -8,22 +8,33 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/gobuffalo/flect"
 	"github.com/gocolly/colly"
 	"github.com/spf13/cobra"
 )
 
 var base string
+var outDir = "."
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "copper",
-	Short: "A brief description of your application",
+	Short: "download pics from a coppermine gallery",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Args: cobra.ExactArgs(2),
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		u, err := url.Parse(args[1])
+		if outDir != "." {
+			outDir = flect.New(outDir).Underscore().String()
+			err := os.Mkdir(outDir, 0777)
+			if err != nil && !os.IsExist(err) {
+				log.Fatal(err)
+			}
+		}
+		println(outDir)
+		u, err := url.Parse(args[0])
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -31,12 +42,14 @@ var rootCmd = &cobra.Command{
 		u.RawQuery = ""
 
 		c := colly.NewCollector()
+		count := 1
 		c.OnHTML("img.thumbnail", func(e *colly.HTMLElement) {
 			dir := filepath.Dir(e.Attr("src"))
 			name := e.Attr("alt")
-			path := filepath.Join(u.Path, dir, name)
-			dl := *u
-			dl.Path = path
+			dl := u.JoinPath(dir, name)
+			//path := filepath.Join(u.Path, dir, name)
+			//dl := *u
+			//dl.Path = path
 			fmt.Printf("%v\n", dl.String())
 
 			resp, err := http.Get(dl.String())
@@ -45,22 +58,39 @@ var rootCmd = &cobra.Command{
 			}
 			defer resp.Body.Close()
 
-			n := args[0] + name
-			out, err := os.Create(n)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer out.Close()
-
-			_, err = io.Copy(out, resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("saving %v\n", n)
+			name = dlPath(name, count)
+			dlPix(name, resp.Body)
+			fmt.Printf("saving %v\n", name)
+			count++
 			//resp
 		})
-		c.Visit(args[1])
+		c.Visit(args[0])
 	},
+}
+
+func dlPath(name string, count int) string {
+	ext := filepath.Ext(name)
+	name = strings.TrimSuffix(name, ext)
+	if base != "" {
+		name = fmt.Sprintf("%s-%02d", base, count)
+	}
+	name = flect.New(name).Underscore().String()
+	name = filepath.Join(outDir, name)
+	name = fmt.Sprintf("%s%s", name, ext)
+	return name
+}
+
+func dlPix(name string, body io.Reader) {
+	out, err := os.Create(name)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, body)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -81,5 +111,6 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().StringVarP(&base, "name", "n", "", "basename of files")
+	rootCmd.Flags().StringVarP(&base, "base", "b", "", "basename of files")
+	rootCmd.Flags().StringVarP(&outDir, "dir", "d", ".", "output dir")
 }
