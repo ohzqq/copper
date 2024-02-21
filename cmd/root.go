@@ -24,8 +24,8 @@ var bURL string
 var rootCmd = &cobra.Command{
 	Use:   "copper",
 	Short: "download pics from a coppermine gallery",
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
+	Long: `example: 
+	copper -u 'https://tylerhoechlin.org/pictures/thumbnails.php' -d testdata/ -i 583 -b "april 2nd wondercon 2022"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if base != "" {
 			base = flect.New(base).Underscore().String()
