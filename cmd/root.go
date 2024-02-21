@@ -17,6 +17,8 @@ import (
 
 var base string
 var outDir = "."
+var id string
+var bURL string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -24,29 +26,31 @@ var rootCmd = &cobra.Command{
 	Short: "download pics from a coppermine gallery",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if outDir != "." {
-			outDir = flect.New(outDir).Underscore().String()
-			err := os.Mkdir(outDir, 0777)
-			if err != nil && !os.IsExist(err) {
-				log.Fatal(err)
-			}
+		if base != "" {
+			base = flect.New(base).Underscore().String()
+		}
+		outDir = flect.New(outDir).Underscore().String()
+		outDir = filepath.Join(outDir, base)
+		err := os.MkdirAll(outDir, 0777)
+		if err != nil && !os.IsExist(err) {
+			log.Fatal(err)
 		}
 		println(outDir)
-		u, err := url.Parse(args[0])
+
+		siteURL, err := url.Parse(bURL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		u.Path = filepath.Dir(u.Path)
-		u.RawQuery = ""
+		siteURL.Path = filepath.Dir(siteURL.Path)
+		siteURL.RawQuery = ""
 
 		c := colly.NewCollector()
 		count := 1
 		c.OnHTML("img.thumbnail", func(e *colly.HTMLElement) {
 			dir := filepath.Dir(e.Attr("src"))
 			name := e.Attr("alt")
-			dl := u.JoinPath(dir, name)
+			dl := siteURL.JoinPath(dir, name)
 			//path := filepath.Join(u.Path, dir, name)
 			//dl := *u
 			//dl.Path = path
@@ -64,7 +68,15 @@ var rootCmd = &cobra.Command{
 			count++
 			//resp
 		})
-		c.Visit(args[0])
+
+		v := make(url.Values)
+		v.Set("album", id)
+		gal, err := url.Parse(bURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		gal.RawQuery = v.Encode()
+		c.Visit(gal.String())
 	},
 }
 
@@ -103,14 +115,8 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.copper.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().StringVarP(&base, "base", "b", "", "basename of files")
 	rootCmd.Flags().StringVarP(&outDir, "dir", "d", ".", "output dir")
+	rootCmd.Flags().StringVarP(&bURL, "url", "u", "", "url of site")
+	rootCmd.Flags().StringVarP(&id, "id", "i", "", "album id")
 }
