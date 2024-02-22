@@ -19,73 +19,78 @@ var base string
 var outDir = "."
 var id string
 var bURL string
+var page string
+var dry bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "copper",
 	Short: "download pics from a coppermine gallery",
 	Long: `example: 
-	copper -u 'https://tylerhoechlin.org/pictures/thumbnails.php' -d testdata/ -i 583 -b "april 2nd wondercon 2022"`,
+	copper -u 'https://tylerhoechlin.org/pictures/ -d testdata/ -i 583 -b "april 2nd wondercon 2022"`,
 	Run: func(cmd *cobra.Command, args []string) {
+		baseURL, err := url.Parse(bURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		//basePath := filepath.Dir(baseURL.Path)
+		//fmt.Printf("base path %s\n", basePath)
+
+		albumURL := baseURL.JoinPath("thumbnails.php")
+		v := make(url.Values)
+		v.Set("album", id)
+		if page != "" {
+			v.Set("page", page)
+		}
+		albumURL.RawQuery = v.Encode()
+		fmt.Printf("album url %s\n", albumURL)
+
 		if base != "" {
 			base = flect.New(base).Underscore().String()
 		}
+
 		outDir = flect.New(outDir).Underscore().String()
 		outDir = filepath.Join(outDir, base)
-		err := os.MkdirAll(outDir, 0777)
+		err = os.MkdirAll(outDir, 0777)
 		if err != nil && !os.IsExist(err) {
 			log.Fatal(err)
 		}
-		println(outDir)
+		fmt.Printf("output dir %s\n", outDir)
 
-		siteURL, err := url.Parse(bURL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		siteURL.Path = filepath.Dir(siteURL.Path)
-		siteURL.RawQuery = ""
+		//albumURL.Path = albumsPath
 
 		c := colly.NewCollector()
-		count := 1
+		//count := 1
 		c.OnHTML("img.thumbnail", func(e *colly.HTMLElement) {
+			albumURL.RawQuery = ""
 			dir := filepath.Dir(e.Attr("src"))
 			name := e.Attr("alt")
-			dl := siteURL.JoinPath(dir, name)
-			//path := filepath.Join(u.Path, dir, name)
-			//dl := *u
-			//dl.Path = path
-			fmt.Printf("%v\n", dl.String())
+			dl := baseURL.JoinPath(dir, name)
+			fmt.Printf("dl url %s\n", dl)
 
-			resp, err := http.Get(dl.String())
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer resp.Body.Close()
-
-			name = dlPath(name, count)
-			dlPix(name, resp.Body)
+			name = dlPath(name)
 			fmt.Printf("saving %v\n", name)
-			count++
+
+			if !dry {
+				resp, err := http.Get(dl.String())
+				if err != nil {
+					log.Print(err)
+				}
+				defer resp.Body.Close()
+				dlPix(name, resp.Body)
+			}
+			//count++
 			//resp
 		})
 
-		v := make(url.Values)
-		v.Set("album", id)
-		gal, err := url.Parse(bURL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		gal.RawQuery = v.Encode()
-		c.Visit(gal.String())
+		c.Visit(albumURL.String())
 	},
 }
 
-func dlPath(name string, count int) string {
+func dlPath(name string) string {
 	ext := filepath.Ext(name)
 	name = strings.TrimSuffix(name, ext)
-	if base != "" {
-		name = fmt.Sprintf("%s-%02d", base, count)
-	}
 	name = flect.New(name).Underscore().String()
 	name = filepath.Join(outDir, name)
 	name = fmt.Sprintf("%s%s", name, ext)
@@ -115,8 +120,10 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&base, "base", "b", "", "basename of files")
+	rootCmd.Flags().StringVarP(&base, "name", "n", "", "basename of files")
 	rootCmd.Flags().StringVarP(&outDir, "dir", "d", ".", "output dir")
 	rootCmd.Flags().StringVarP(&bURL, "url", "u", "", "url of site")
 	rootCmd.Flags().StringVarP(&id, "id", "i", "", "album id")
+	rootCmd.Flags().StringVarP(&page, "page", "p", "", "page num")
+	rootCmd.Flags().BoolVar(&dry, "dry-run", false, "do a dry run (no files will be downloaded")
 }
