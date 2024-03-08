@@ -27,7 +27,7 @@ var rootCmd = &cobra.Command{
 	Use:   "copper",
 	Short: "download pics from a coppermine gallery",
 	Long: `example: 
-	copper -u 'https://tylerhoechlin.org/pictures/ -d testdata/ -i 583 -b "april 2nd wondercon 2022"`,
+	copper -u 'https://tylerhoechlin.org/pictures/ -d testdata/ -i 583 -n "april 2nd wondercon 2022"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		baseURL, err := url.Parse(bURL)
 		if err != nil {
